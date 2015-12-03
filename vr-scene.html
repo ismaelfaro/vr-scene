@@ -1,0 +1,388 @@
+<!--
+
+[vr-scene] is a BABYLON JS Web Component wrapper Licensed under the MIT license - http://opensource.org/licenses/MIT more info about BABYLON - babylonjs.com Copyright (c) 2015 Ismael Faro
+
+-->
+
+<link rel="import" href="../polymer/polymer.html">
+<!-- <link rel="import" href="../wc-babylonjs/wc-babylonjs.html"> -->
+
+<script src="js/Babylon.js"></script>
+
+<!--
+
+The `vr-scene` element create a canvas with BABYLON JS library and give you 3 basic elements to create 3D scenes.
+
+    <vr-scene>
+      <vr-object name="object1" object="sphere" ></vr-object>
+      <vr-light  name="light"></vr-light>
+    </vr-scene>
+
+    the tag vr-scene is the main element, it define by default the scene, camera and background color.
+    you have aditional parameters such us animationLength (animation loop for animation time) and followme (object name that the camera follow)
+
+    <vr-scene camera = "oculus" bgcolor = '{ r:0, g:0, b:1 }'>
+      <vr-object name="object1" object="sphere" position='{x: 0, y: 0, z:0}' ></vr-object>
+      <vr-object name="object2" object="box"  px="-5" py="5"></vr-object>
+      <vr-light  name="light" intensity="0.1" ></vr-light>
+    </vr-scene>
+
+    the vr-object has the next parameters:
+
+      name      : 'object name in the scene',
+      object    : 'object type':
+
+                        'sphere'  : segments, size
+                        'plane'   : size
+                        'cube'    : size
+                        'cylinder': { height, diamTop, diamBottom, tessellation
+                        'torus'   : size, thickness , tessellation
+                        'import'  : "you need to set the url parameter"
+
+      url       : 'url to import babylon objects'
+      position  : {x: 0, y: 0, z:0}
+                  or set individual parameters.
+                  px,
+                  py,
+                  pz,
+      rotation  : {x: 0, y: 0, z:0}
+                  or set individual parameters.
+                  rx,
+                  ry,
+                  rz,
+      scale     : {x: 0, y: 0, z:0}
+                  or set individual parameters.
+                  sx,
+                  sy,
+                  sz }
+
+
+    the vr-light has the next parameters:
+
+      name      : 'object name in the scene',
+      position  : {x: 0, y: 0, z:0}
+                  or set individual parameters.
+                  px,
+                  py,
+                  pz,
+      color: {r: 0, g: 0, b:1} // all between 0..1
+                  or set individual parameters.
+                  cr,
+                  cg,
+                  cb,
+      specular: {r:0.1, g:0.1, b:0.1},
+      intensity: between 0..1
+
+
+@group Ismaelfaro Elements
+@element vr-tag
+@demo demo/index.html
+-->
+
+<dom-module id="vr-scene">
+    <template>
+      <style>
+          #renderCanvas {
+              width: 100%;
+              height: 100%;
+              touch-action: none;
+          }
+      </style>
+        <canvas id="renderCanvas"></canvas>
+    </template>
+</dom-module>
+
+<script>
+    Polymer({
+        is: 'vr-scene',
+        properties: {
+            camera: String,
+            cameraposition: Object,
+            bgcolor: Object,
+            scene: Object,
+            animationLength: {
+                type    : Number,
+                value   : "250"
+            },
+            followme: {
+                type    : String,
+                value   : "followme"
+            }
+        },
+        _scene : null,
+        cameraObject: null,
+        canvas: null,
+        engine: null,
+        lights: [],
+        ObjectTypes : {
+          'sphere'  : { init: function (data, scene){
+                        return BABYLON.Mesh.CreateSphere( data.object , data.segments || 10, data.size || 10 , scene);
+                    }},
+          'plane'   : {init: function (data, scene){
+                        return BABYLON.Mesh.CreatePlane( data.object , data.size || 10, scene);
+                    }},
+          'cube'    : {init: function (data, scene){
+                        return BABYLON.Mesh.CreateBox( data.object , data.size || 10 , scene);
+                    }},
+          'cylinder': {init: function (data, scene){
+                        return BABYLON.Mesh.CreateCylinder( data.object , data.height || 10, data.diamTop || 10, data.diamBottom || 10, data.tessellation || 10 , scene);
+                    }},
+          'torus'   : {init: function (data, scene){
+                        return BABYLON.Mesh.CreateTorus( data.object , data.size || 10 , data.thickness || 10 , data.tessellation || 10 , scene);
+                    }},
+          'box'     : {init: this.cube}
+        },
+        _convertToV3: function(first, second, third){
+
+            if (!second) return new BABYLON.Vector3(first.x, first.y, first.z);
+
+            return new BABYLON.Vector3(first, second, third)
+
+        },
+        _convertToC3: function(color){
+            return  new BABYLON.Color3(color.r, color.g, color.b);
+        },
+        _setParameters: function(element, dataObject){
+            element.position  = this._convertToV3(dataObject.position) ;
+            element.rotation  = this._convertToV3(dataObject.rotation);
+            element.scaling   = this._convertToV3(dataObject.scale);
+        },
+        _importElement: function(url){
+            if (!dataObject.url) return { erro: 'not url'};
+
+            var sceneFilename = dataObject.url.split('/').slice(-1)[0],
+                rootUrl = dataObject.url.slice(0, -sceneFilename.length);
+
+            BABYLON.SceneLoader.ImportMesh('', rootUrl, sceneFilename, this._scene, function (newMeshes) {
+                newMeshes.forEach(function (element) {
+
+                    this._setParameters(element, dataObject);
+
+                    if (element.animations.length > 0) {
+                        self._scene.beginAnimation(element, 0, self.animationLength, true);
+                        if (element.id === this.followme) {
+                            self.cameraObject.target = element;
+                        }
+                    }
+                });
+            });
+        },
+        _addPrimitive: function(dataObject){
+            var element = this.ObjectTypes[dataObject.object].init(dataObject, this._scene);
+            this._setParameters(element, dataObject);
+        },
+        _isPrimitive: function(dataObject){
+            return Object.keys( this.ObjectTypes ).indexOf(dataObject.object) >= 0;
+        },
+        initScene: function () {
+            var self = this;
+            this._scene = new BABYLON.Scene(this.engine);
+
+            this.setBGColor( this.bgcolor || { r:0, g:0, b:0 } );
+
+            this.addCamera('mainCamera', this.camera, this.cameraposition);
+        },
+        setBGColor: function(color){
+            this._scene.clearColor = this._convertToC3(color);
+        },
+        addCamera: function( name, type, position){
+          var positionZero    =  {x:0, y:0, z:0},
+              positionDefault =  position || {x:0, y:10, z:-20};
+              // positionDefault =  position || {x:0, y:20, z:30};
+
+          switch (type) {
+              case 'oculus':
+                  this.cameraObject = new BABYLON.OculusCamera(name, this._convertToV3(positionDefault) , this._scene);
+                  break;
+              case 'cardboard':
+                  this.cameraObject = new BABYLON.VRDeviceOrientationCamera(name, this._convertToV3(positionDefault), this._scene);
+                  this.cameraObject.rotation.x = 90;
+                  break;
+              case 'vr':
+                  this.cameraObject = new BABYLON.VirtualJoysticksCamera(name, this._convertToV3(positionZero) , this._scene);
+                  break;
+              case 'follow':
+                  this.cameraObject                    = new BABYLON.FollowCamera(name, this._convertToV3(positionZero) , this._scene);
+                  this.cameraObject.target             = this.followme;
+                  this.cameraObject.radius             = 10;
+                  this.cameraObject.heightOffset       = 8;
+                  this.cameraObject.rotationOffset     = 100;
+                  this.cameraObject.cameraAcceleration = 0.001;
+                  this.cameraObject.maxCameraSpeed     = 0.04;
+                  break;
+              default:
+                  this.cameraObject = new BABYLON.ArcRotateCamera(name, 0, 0, 0, this._convertToV3(positionZero), this._scene);
+                  this.cameraObject.setPosition(this._convertToV3(positionDefault));
+                  // this.cameraObject.setPosition(new BABYLON.Vector3(0, 15, 30));
+          }
+
+          this.cameraObject.attachControl(this.canvas, false);
+        },
+        addLight: function (dataObject) {
+            var light = new BABYLON.HemisphericLight(dataObject.name, this._convertToV3(dataObject.position), this._scene);
+
+            light.diffuse  = this._convertToC3(dataObject.color);
+            light.specular = this._convertToC3(dataObject.specular);
+            light.intensity = dataObject.intensity;
+
+            this.lights.push(light);
+        },
+        addObject: function (dataObject) {
+
+            if( this._isPrimitive( dataObject )){
+              this._addPrimitive(dataObject);
+            } else {
+              this._importElement(dataObject);
+            }
+        },
+        ready: function () {
+            var self = this;
+
+            this.canvas = this.$.renderCanvas;
+
+            this.engine = new BABYLON.Engine(this.canvas, true);
+
+            this.engine.setSize(window.innerWidth, window.innerHeight);
+
+            this.initScene();
+
+            this.engine.runRenderLoop(function () {
+                self._scene.render();
+            });
+
+            window.addEventListener('resize', function () {
+                self.engine.resize();
+            });
+        }
+    });
+</script>
+
+<script>
+    Polymer({
+        is: "vr-object",
+        properties: {
+            name: String,
+            url: String,
+            object: String,
+            px: {
+                type: Number,
+                value: 0
+            },
+            py: {
+                type: Number,
+                value: 0
+            },
+            pz: {
+                type: Number,
+                value: 0
+            },
+            position: Object,
+            rx : {
+                type: Number,
+                value: -0.5
+            },
+            ry : {
+                type: Number,
+                value: 0
+            },
+            rz: {
+                type: Number,
+                value: 0
+            },
+            rotation: Object,
+            sx: {
+                type: Number,
+                value: 1
+            },
+            sy: {
+                type: Number,
+                value: 1
+            },
+            sz: {
+                type: Number,
+                value: 1
+            },
+            scale: Object
+
+        },
+        ready: function () {
+            var parameters =  {
+                  url       : this.url,
+                  name      : this.name,
+                  object    : this.object,
+                  position  : this.position || {
+                              x: this.px,
+                              y: this.py,
+                              z: this.pz },
+                  rotation  : this.rotation || {
+                              x: this.rx,
+                              y: this.ry,
+                              z: this.rz },
+                  scale     : this.rotation || {
+                              x: this.sx,
+                              y: this.sy,
+                              z: this.sz }
+                };
+            Polymer.dom(this).parentNode.addObject(parameters);
+        }
+    });
+</script>
+
+<script>
+    Polymer({
+        is: "vr-light",
+        properties: {
+            name: String,
+            px: {
+                type: Number,
+                value: 0
+            },
+            py: {
+                type: Number,
+                value: 0
+            },
+            pz: {
+                type: Number,
+                value: 0
+            },
+            position: Object,
+            cr: {
+                type: Number,
+                value: 1
+            },
+            cg: {
+                type: Number,
+                value: 1
+            },
+            cb: {
+                type: Number,
+                value: 1
+            },
+            color: Object,
+            specular: {
+                type: Object,
+                value: {r:0.1, g:0.1, b:0.1},
+            },
+            intensity: {
+                type: Number,
+                value: 1
+            }
+        },
+        ready: function () {
+            var parameters =  {
+                    'name'      : this.name,
+                    'position'  : this.position || {
+                                        x: this.px,
+                                        y: this.py,
+                                        z: this.pz },
+                    'intensity' : this.intensity,
+                    'color'     : this.color    || {
+                                        r: this.cr,
+                                        g: this.cg,
+                                        b: this.cb },
+                    'specular'  : this.specular
+                }
+            Polymer.dom(this).parentNode.addLight(parameters);
+        }
+    });
+</script>

@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+<head>
+  <title>vr-scene demo</title>
+
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1, user-scalable=yes">
+
+  <script src="../../webcomponentsjs/webcomponents-lite.js"></script>
+
+  <link rel="import" href="../vr-scene.html">
+
+  <style>
+    html,
+    body {
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <vr-scene>
+    <vr-object name="object1" object="sphere" ></vr-object>
+    <vr-light  name="light"></vr-light>
+  </vr-scene>
+
+</body>
+</html>
