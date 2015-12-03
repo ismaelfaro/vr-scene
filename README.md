@@ -64,3 +64,5 @@ The `vr-scene` element create a canvas with BABYLON JS library and give you 3 ba
       specular: {r:0.1, g:0.1, b:0.1},
       intensity: between 0..1
 ```
+
+You can check 360 video Web component [VR-video] (https://github.com/ismaelfaro/vr-video)
